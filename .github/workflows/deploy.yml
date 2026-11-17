@@ -1,0 +1,50 @@
+name: Build and Deployment
+
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: privacy-policy-deploy
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        name: Deploy to ${{ matrix.site.id }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            max-parallel: 5
+            matrix:
+                site:
+                    - id: vesna
+                      host: 31.31.197.6
+                      port: 22
+                      username: u3017569
+                      target: /var/www/u3017569/data/www/vesna-clinic.ru/wp-content/plugins/privacy-policy
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Stage the plugin directory
+              run: |
+                  mkdir -p build/privacy-policy
+                  cp -R privacy-policy.php includes uninstall.php build/privacy-policy/
+
+            - name: Deploy to ${{ matrix.site.id }} over SSH (SCP)
+              uses: appleboy/scp-action@v0.1.7
+              with:
+                  host: ${{ matrix.site.host }}
+                  port: ${{ matrix.site.port }}
+                  username: ${{ matrix.site.username }}
+                  key: ${{ secrets.RSA_KEY || secrets.SSH_PRIVATE_KEY }}
+                  source: "build/privacy-policy/*"
+                  target: ${{ matrix.site.target }}
+                  strip_components: 2
+                  overwrite: true
+                  rm: false
