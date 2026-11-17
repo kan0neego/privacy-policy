@@ -38,6 +38,7 @@ final class Plugin {
 
 	public function boot(): void {
 		add_action( 'plugins_loaded', array( ConsentActivator::class, 'maybe_upgrade' ) );
+		add_filter( 'rest_authentication_errors', array( $this, 'skip_rest_nonce' ), 101 );
 		add_action( 'rest_api_init', array( $this, 'register_rest' ) );
 
 		if ( is_admin() ) {
@@ -49,6 +50,30 @@ final class Plugin {
 
 	public function register_rest(): void {
 		$this->controller->register_routes();
+	}
+
+	/**
+	 * Public consent routes do not use the core cookie nonce.
+	 *
+	 * @param mixed $result
+	 * @return mixed
+	 */
+	public function skip_rest_nonce( $result ) {
+		if ( ! is_wp_error( $result ) || 'rest_cookie_invalid_nonce' !== $result->get_error_code() ) {
+			return $result;
+		}
+
+		$route = '';
+		if ( isset( $GLOBALS['wp']->query_vars['rest_route'] ) ) {
+			$route = (string) $GLOBALS['wp']->query_vars['rest_route'];
+		}
+
+		$prefix = '/' . PRIVACY_POLICY_REST_NAMESPACE;
+		if ( 0 === strpos( $route, $prefix ) ) {
+			return true;
+		}
+
+		return $result;
 	}
 
 	public function service(): CookieConsentService {
